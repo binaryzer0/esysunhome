@@ -20,6 +20,8 @@ from .const import (
     ESY_MQTT_PASSWORD,
     CONF_ENABLE_POLLING,
     DEFAULT_ENABLE_POLLING,
+    CONF_TP_TYPE,
+    DEFAULT_TP_TYPE,
 )
 from .esysunhome import ESYSunhomeAPI, MqttCredentials
 from .protocol import DynamicTelemetryParser, create_parser
@@ -35,8 +37,8 @@ class TelemetryData:
     """Container for telemetry data with attribute access."""
     
     def __init__(self, data: dict):
-        self._data = data
-        for key, value in data.items():
+        self._data = dict(data)
+        for key, value in self._data.items():
             if not key.startswith("_"):
                 setattr(self, key, value)
     
@@ -76,7 +78,17 @@ class ESYSunhomeCoordinator(DataUpdateCoordinator):
         
         # Create parser with protocol
         self.parser = create_parser(protocol)
-        
+
+        # Phase type drives the 3-phase telemetry corrections in the parser and
+        # the rated-power basis (5kW per phase) used by the % power controls.
+        tp = config_entry.data.get(CONF_TP_TYPE, DEFAULT_TP_TYPE)
+        try:
+            tp = int(tp)
+        except (TypeError, ValueError):
+            tp = DEFAULT_TP_TYPE
+        self.phase_count = 3 if tp == 3 else 1
+        self.parser.set_tp_type(tp)
+
         # MQTT state
         self._mqtt_client: Optional[aiomqtt.Client] = None
         self._mqtt_task: Optional[asyncio.Task] = None
@@ -392,7 +404,7 @@ class ESYSunhomeCoordinator(DataUpdateCoordinator):
                              data.get("loadPower", 0),
                              data.get("batterySoc", 0))
             else:
-                _LOGGER.warning("Failed to parse telemetry")
+                _LOGGER.debug("No usable telemetry in message")
                 
         except Exception as e:
             _LOGGER.error("Error processing telemetry: %s", e)
@@ -445,9 +457,19 @@ class ESYSunhomeCoordinator(DataUpdateCoordinator):
         """
         import time
         from .protocol import ESYCommandBuilder
-        
-        # Register 57 = systemRunMode / patternMode
+        from .protocol_api import FC_READ_HOLDING
+
+        # systemRunMode register address varies by model (57 single-phase, 72
+        # three-phase, where 57 is clearMeterEnergy). Resolve it from the
+        # per-model register map; fall back to 57 only if the map is unavailable.
         MODE_REGISTER = 57
+        if self.protocol:
+            reg = self.protocol.get_register_by_key("systemRunMode", FC_READ_HOLDING)
+            if reg is not None:
+                MODE_REGISTER = reg.address
+                _LOGGER.debug("Resolved systemRunMode write register to %d", MODE_REGISTER)
+            else:
+                _LOGGER.warning("systemRunMode not in register map; using fallback register 57")
         
         # MQTT register value to display name (for logging)
         MODE_NAMES = {

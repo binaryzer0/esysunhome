@@ -2,6 +2,12 @@
 
 A Home Assistant integration for ESY Sunhome battery systems, providing monitoring and control via MQTT.
 
+> ### ☁️ Don't want to run Home Assistant?
+> This integration is for self-hosting on Home Assistant. If you'd rather not set up and
+> maintain HA yourself, **[SolanIQ](https://solaniq.ai)** is a hosted service that optimises
+> your ESY Sunhome battery against live wholesale prices and solar forecasts — no Home
+> Assistant required. → **[Try it at solaniq.ai](https://solaniq.ai)**
+
 ![Example Screenshot](/screenshot.png)
 
 ## ⚠️ Important: Firmware Requirement
@@ -98,3 +104,8 @@ Switching to Amber for wholesale electricity rates? Use code **QVLA4DT4** for **
 ## License
 
 This project is licensed under the MIT License.
+
+### Partial MQTT telemetry regression checks
+
+See [partial telemetry reporting](docs/partial-telemetry.md) for the reporting
+contract, test commands, upstream/fork version context, and live verification.
